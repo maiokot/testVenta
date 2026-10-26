@@ -1,0 +1,657 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Мониторинг мебельной фабрики</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource/inter@5.0.0/index.css">
+<style>
+  :root {
+    --brand: #009e98;
+    --brand-dark: #007a75;
+    --brand-soft: #e6f5f4;
+    --brand-border: #b2dfdc;
+    --bg: #f5f6f8;
+    --panel: #ffffff;
+    --border: #e5e7eb;
+    --border-strong: #d1d5db;
+    --text: #111827;
+    --text-2: #374151;
+    --muted: #6b7280;
+    --muted-2: #9ca3af;
+    --danger: #b91c1c;
+    --danger-soft: #fef2f2;
+    --danger-border: #fecaca;
+    --warning: #92400e;
+    --warning-soft: #fffbeb;
+    --warning-border: #fde68a;
+  }
+  * { -webkit-font-smoothing: antialiased; }
+  body {
+    font-family: 'Inter', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    font-size: 14px;
+  }
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+  }
+  .kpi-card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    transition: border-color 0.15s ease;
+  }
+  .kpi-card:hover { border-color: var(--brand-border); }
+  .divider { border-color: var(--border); }
+  .scroll-thin::-webkit-scrollbar { width: 6px; height: 6px; }
+  .scroll-thin::-webkit-scrollbar-track { background: #f1f1f1; }
+  .scroll-thin::-webkit-scrollbar-thumb { background: #c5c5c5; border-radius: 3px; }
+  .status-badge {
+    font-size: 11px; padding: 2px 8px; border-radius: 3px;
+    font-weight: 500; letter-spacing: 0.2px;
+  }
+  .table-row:hover { background: #fafbfc; }
+  .critical-row { background: var(--danger-soft); }
+  .warning-row { background: var(--warning-soft); }
+  .progress-bar { transition: width 1s ease-out; }
+  .tabular { font-variant-numeric: tabular-nums; }
+  .brand-bar { background: var(--brand); }
+  .brand-text { color: var(--brand-dark); }
+  .brand-bg-soft { background: var(--brand-soft); }
+  .brand-border { border-color: var(--brand-border); }
+  .section-title {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--text);
+    letter-spacing: -0.01em;
+  }
+  .section-sub {
+    font-size: 12px;
+    color: var(--muted);
+    margin-top: 2px;
+  }
+  .kpi-label {
+    font-size: 11px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    font-weight: 500;
+  }
+  .kpi-value {
+    font-size: 26px;
+    font-weight: 600;
+    color: var(--text);
+    letter-spacing: -0.02em;
+  }
+  .kpi-meta {
+    font-size: 11px;
+    color: var(--muted);
+    margin-top: 4px;
+  }
+  .shop-row {
+    background: #fafbfc;
+    border: 1px solid var(--border);
+    border-radius: 5px;
+  }
+  .shop-row.critical {
+    border-color: var(--danger-border);
+    background: var(--danger-soft);
+  }
+  .alert-box {
+    background: var(--brand-soft);
+    border: 1px solid var(--brand-border);
+    border-left: 3px solid var(--brand);
+    border-radius: 4px;
+  }
+  .chip {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 3px 10px; border-radius: 3px;
+    background: #f3f4f6; border: 1px solid var(--border);
+    font-size: 11px; color: var(--text-2);
+  }
+  .chip .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--brand); }
+  .header-brand {
+    background: var(--panel);
+    border-bottom: 1px solid var(--border);
+  }
+  .header-brand::after {
+    content: '';
+    position: absolute;
+    bottom: 0; left: 0; right: 0;
+    height: 2px;
+    background: var(--brand);
+  }
+</style>
+</head>
+<body class="min-h-screen">
+
+<!-- Header -->
+<header class="header-brand sticky top-0 z-50 relative">
+  <div class="max-w-[1600px] mx-auto px-6 py-3.5 flex items-center justify-between flex-wrap gap-4">
+    <div class="flex items-center gap-4">
+      <div class="w-9 h-9 rounded brand-bar flex items-center justify-center font-semibold text-white text-sm">МФ</div>
+      <div class="border-l border-[var(--border)] pl-4">
+        <h1 class="text-[15px] font-semibold text-[var(--text)] tracking-tight">Ежедневный отчет по работе компании</h1>
+        <p class="text-xs text-[var(--muted)] mt-0.5">Дата отчета: <span id="currentDate" class="text-[var(--text-2)] font-medium">27.10.2026</span></p>
+      </div>
+    </div>
+    <div class="flex items-center gap-5">
+      <div class="chip">
+        <span class="dot"></span>
+        <span>Система активна</span>
+      </div>
+      <div class="text-right">
+        <div class="text-[10px] uppercase tracking-wider text-[var(--muted)]">Обновлено</div>
+        <div class="text-sm font-medium text-[var(--text)] tabular" id="currentTime">--:--:--</div>
+      </div>
+    </div>
+  </div>
+</header>
+
+<main class="max-w-[1600px] mx-auto px-6 py-6 space-y-5">
+
+  <!-- KPI Row -->
+  <section class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+    <div class="kpi-card p-4">
+      <div class="flex items-center justify-between mb-2">
+        <span class="kpi-label">В производстве</span>
+      </div>
+      <div class="kpi-value tabular">566</div>
+      <div class="kpi-meta">заказов в работе</div>
+    </div>
+
+    <div class="kpi-card p-4 border-l-[3px] border-l-[var(--danger)]">
+      <div class="flex items-center justify-between mb-2">
+        <span class="kpi-label">Просрочено</span>
+      </div>
+      <div class="kpi-value tabular" style="color: var(--danger);">323</div>
+      <div class="kpi-meta">требуют контроля</div>
+    </div>
+
+    <div class="kpi-card p-4 border-l-[3px] border-l-[var(--warning)]">
+      <div class="flex items-center justify-between mb-2">
+        <span class="kpi-label">Отставание</span>
+      </div>
+      <div class="kpi-value tabular" style="color: var(--warning);">323</div>
+      <div class="kpi-meta">от графика</div>
+    </div>
+
+    <div class="kpi-card p-4 border-l-[3px] border-l-[var(--brand)]">
+      <div class="flex items-center justify-between mb-2">
+        <span class="kpi-label">Выполнено сегодня</span>
+      </div>
+      <div class="kpi-value tabular">0</div>
+      <div class="kpi-meta">договоров закрыто</div>
+    </div>
+
+    <div class="kpi-card p-4">
+      <div class="flex items-center justify-between mb-2">
+        <span class="kpi-label">Рекламации</span>
+      </div>
+      <div class="kpi-value tabular">29</div>
+      <div class="kpi-meta">в работе сервиса</div>
+    </div>
+
+    <div class="kpi-card p-4">
+      <div class="flex items-center justify-between mb-2">
+        <span class="kpi-label">Штат</span>
+      </div>
+      <div class="kpi-value tabular">172</div>
+      <div class="kpi-meta">сотрудников</div>
+    </div>
+  </section>
+
+  <!-- Production & Summary -->
+  <section class="grid grid-cols-1 lg:grid-cols-3 gap-5">
+
+    <!-- Production by Shop -->
+    <div class="lg:col-span-2 panel p-5">
+      <div class="flex items-center justify-between mb-5">
+        <div>
+          <h2 class="section-title">Производство по цехам</h2>
+          <p class="section-sub">Загрузка и отставание на текущую дату</p>
+        </div>
+        <div class="flex gap-2">
+          <span class="status-badge brand-bg-soft brand-text border border-[var(--brand-border)]">В работе</span>
+          <span class="status-badge bg-[var(--danger-soft)] text-[var(--danger)] border border-[var(--danger-border)]">Отставание</span>
+        </div>
+      </div>
+
+      <div class="space-y-2.5">
+        <!-- Цех V-2.1 VIP -->
+        <div class="shop-row p-3.5">
+          <div class="flex items-center justify-between mb-2.5">
+            <div class="flex items-center gap-2.5">
+              <div class="w-1 h-5 brand-bar rounded-sm"></div>
+              <span class="font-medium text-[var(--text)]">Цех V-2.1 VIP</span>
+            </div>
+            <div class="flex items-center gap-5 text-sm">
+              <span class="text-[var(--muted)]">В работе: <span class="font-semibold text-[var(--text)] tabular">16</span></span>
+              <span class="font-semibold text-[var(--danger)] tabular">Отставание: 5</span>
+            </div>
+          </div>
+          <div class="relative h-1.5 bg-[var(--border)] rounded-sm overflow-hidden">
+            <div class="progress-bar absolute inset-y-0 left-0 brand-bar" style="width: 70%"></div>
+          </div>
+          <div class="flex justify-between mt-2 text-xs text-[var(--muted)]">
+            <span>Загрузка: <span class="text-[var(--text-2)] font-medium">70%</span></span>
+            <span class="text-[var(--danger)]">31% заказов с отставанием</span>
+          </div>
+        </div>
+
+        <!-- Цех V-2.2 Малярный -->
+        <div class="shop-row p-3.5">
+          <div class="flex items-center justify-between mb-2.5">
+            <div class="flex items-center gap-2.5">
+              <div class="w-1 h-5 brand-bar rounded-sm" style="opacity: 0.7;"></div>
+              <span class="font-medium text-[var(--text)]">Цех V-2.2 Малярный</span>
+            </div>
+            <div class="flex items-center gap-5 text-sm">
+              <span class="text-[var(--muted)]">В работе: <span class="font-semibold text-[var(--text)] tabular">7</span></span>
+              <span class="font-semibold text-[var(--warning)] tabular">Отставание: 2</span>
+            </div>
+          </div>
+          <div class="relative h-1.5 bg-[var(--border)] rounded-sm overflow-hidden">
+            <div class="progress-bar absolute inset-y-0 left-0 brand-bar" style="width: 75%; opacity: 0.75;"></div>
+          </div>
+          <div class="flex justify-between mt-2 text-xs text-[var(--muted)]">
+            <span>Загрузка: <span class="text-[var(--text-2)] font-medium">75%</span></span>
+            <span class="text-[var(--warning)]">29% с отставанием</span>
+          </div>
+        </div>
+
+        <!-- Цех Б-1 Индив -->
+        <div class="shop-row critical p-3.5">
+          <div class="flex items-center justify-between mb-2.5">
+            <div class="flex items-center gap-2.5">
+              <div class="w-1 h-5 rounded-sm" style="background: var(--danger);"></div>
+              <span class="font-medium text-[var(--text)]">Цех Б-1 Индив</span>
+              <span class="status-badge bg-[var(--danger-soft)] text-[var(--danger)] border border-[var(--danger-border)]">Критично</span>
+            </div>
+            <div class="flex items-center gap-5 text-sm">
+              <span class="text-[var(--muted)]">В работе: <span class="font-semibold text-[var(--text)] tabular">237</span></span>
+              <span class="font-semibold text-[var(--danger)] tabular">Отставание: 100</span>
+            </div>
+          </div>
+          <div class="relative h-1.5 bg-white rounded-sm overflow-hidden">
+            <div class="progress-bar absolute inset-y-0 left-0" style="width: 100%; background: var(--danger);"></div>
+          </div>
+          <div class="flex justify-between mt-2 text-xs text-[var(--muted)]">
+            <span>Перегрузка: <span class="text-[var(--danger)] font-semibold">100%</span></span>
+            <span class="text-[var(--danger)] font-semibold">42% заказов с отставанием</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Chart -->
+      <div class="mt-5 pt-5 border-t border-[var(--border)]">
+        <div class="h-56">
+          <canvas id="productionChart"></canvas>
+        </div>
+      </div>
+    </div>
+
+    <!-- Quick Stats -->
+    <div class="panel p-5">
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="section-title">Сводка дня</h2>
+        <span class="chip"><span class="dot"></span>Текущие данные</span>
+      </div>
+
+      <div class="space-y-2.5">
+        <div class="p-3.5 bg-[#fafbfc] border border-[var(--border)] rounded">
+          <div class="kpi-label mb-1">Новых договоров</div>
+          <div class="text-xl font-semibold text-[var(--text)] tabular">0</div>
+          <div class="text-xs text-[var(--muted)] mt-0.5">передано в производство</div>
+        </div>
+
+        <div class="p-3.5 bg-[#fafbfc] border border-[var(--border)] rounded">
+          <div class="kpi-label mb-1">Выполнено договоров</div>
+          <div class="text-xl font-semibold brand-text tabular">0</div>
+          <div class="text-xs text-[var(--muted)] mt-0.5">сумма: 0 ₽</div>
+        </div>
+
+        <div class="p-3.5 bg-[#fafbfc] border border-[var(--border)] rounded">
+          <div class="kpi-label mb-1">Конструкторский отдел</div>
+          <div class="text-xl font-semibold text-[var(--text)] tabular">68</div>
+          <div class="text-xs text-[var(--muted)] mt-0.5">в работе · <span class="text-[var(--danger)]">53 просрочено</span></div>
+        </div>
+
+        <div class="alert-box p-3.5">
+          <div class="flex items-center gap-1.5 mb-1.5">
+            <svg class="w-3.5 h-3.5 brand-text" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            <span class="text-[10px] font-semibold brand-text uppercase tracking-wider">Внимание</span>
+          </div>
+          <p class="text-xs text-[var(--text-2)] leading-relaxed">Цех Б-1 Индив перегружен на 100%. Рекомендуется перераспределить заказы между цехами.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Overdue Orders Table -->
+  <section class="panel p-5">
+    <div class="flex items-center justify-between mb-5 flex-wrap gap-3">
+      <div>
+        <h2 class="section-title flex items-center gap-2">
+          <span class="w-1.5 h-1.5 rounded-full" style="background: var(--danger);"></span>
+          Просроченные заказы
+        </h2>
+        <p class="section-sub">Требуют немедленного вмешательства</p>
+      </div>
+      <div class="flex items-center gap-2.5">
+        <span class="text-xs text-[var(--muted)] uppercase tracking-wider">Всего просрочено:</span>
+        <span class="text-xl font-semibold text-[var(--danger)] tabular">323</span>
+      </div>
+    </div>
+
+    <div class="overflow-x-auto scroll-thin border border-[var(--border)] rounded">
+      <table class="w-full text-sm">
+        <thead>
+          <tr class="text-left text-[11px] text-[var(--muted)] uppercase tracking-wider bg-[#fafbfc] border-b border-[var(--border)]">
+            <th class="px-3 py-2.5 font-semibold">№</th>
+            <th class="px-3 py-2.5 font-semibold">Заказ</th>
+            <th class="px-3 py-2.5 font-semibold">Срок</th>
+            <th class="px-3 py-2.5 font-semibold">Цех</th>
+            <th class="px-3 py-2.5 font-semibold">Причина</th>
+            <th class="px-3 py-2.5 font-semibold text-center">Просрочка (дн)</th>
+            <th class="px-3 py-2.5 font-semibold text-right">Долг</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-[var(--border)]">
+          <tr class="critical-row table-row">
+            <td class="px-3 py-2.5 text-[var(--muted)] tabular">1</td>
+            <td class="px-3 py-2.5 font-medium text-[var(--text)]">Пеленальные столы 3</td>
+            <td class="px-3 py-2.5 text-[var(--text-2)] tabular">24.03.25</td>
+            <td class="px-3 py-2.5"><span class="status-badge brand-bg-soft brand-text border border-[var(--brand-border)]">V-3.1 Серия</span></td>
+            <td class="px-3 py-2.5 text-[var(--muted)]">—</td>
+            <td class="px-3 py-2.5 text-center"><span class="font-semibold text-[var(--danger)] tabular">103</span></td>
+            <td class="px-3 py-2.5 text-right font-mono text-[var(--danger)] tabular">97 200 ₽</td>
+          </tr>
+          <tr class="critical-row table-row">
+            <td class="px-3 py-2.5 text-[var(--muted)] tabular">2</td>
+            <td class="px-3 py-2.5 font-medium text-[var(--text)]">Индив</td>
+            <td class="px-3 py-2.5 text-[var(--text-2)] tabular">25.04.25</td>
+            <td class="px-3 py-2.5"><span class="status-badge brand-bg-soft brand-text border border-[var(--brand-border)]">V-3.0 Индив</span></td>
+            <td class="px-3 py-2.5 text-[var(--warning)] text-xs">Нет материала Венеция черная</td>
+            <td class="px-3 py-2.5 text-center"><span class="font-semibold text-[var(--danger)] tabular">71</span></td>
+            <td class="px-3 py-2.5 text-right font-mono text-[var(--muted)] tabular">0 ₽</td>
+          </tr>
+          <tr class="warning-row table-row">
+            <td class="px-3 py-2.5 text-[var(--muted)] tabular">3</td>
+            <td class="px-3 py-2.5 font-medium text-[var(--text)]">Мебель в прихожую №41206</td>
+            <td class="px-3 py-2.5 text-[var(--text-2)] tabular">07.05.25</td>
+            <td class="px-3 py-2.5"><span class="status-badge brand-bg-soft brand-text border border-[var(--brand-border)]">V-3.0 Индив</span></td>
+            <td class="px-3 py-2.5 text-[var(--warning)] text-xs">Обрезка / нет ЛДСП</td>
+            <td class="px-3 py-2.5 text-center"><span class="font-semibold text-[var(--warning)] tabular">59</span></td>
+            <td class="px-3 py-2.5 text-right font-mono text-[var(--muted)] tabular">0 ₽</td>
+          </tr>
+          <tr class="warning-row table-row">
+            <td class="px-3 py-2.5 text-[var(--muted)] tabular">4</td>
+            <td class="px-3 py-2.5 font-medium text-[var(--text)]">Кухня Вологодское</td>
+            <td class="px-3 py-2.5 text-[var(--text-2)] tabular">07.05.25</td>
+            <td class="px-3 py-2.5"><span class="status-badge brand-bg-soft brand-text border border-[var(--brand-border)]">V-2.1 VIP</span></td>
+            <td class="px-3 py-2.5 text-[var(--warning)] text-xs">Эмаль в малярке</td>
+            <td class="px-3 py-2.5 text-center"><span class="font-semibold text-[var(--warning)] tabular">59</span></td>
+            <td class="px-3 py-2.5 text-right font-mono text-[var(--muted)] tabular">0 ₽</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- Finance & Logistics -->
+  <section class="grid grid-cols-1 lg:grid-cols-2 gap-5">
+
+    <!-- Finance -->
+    <div class="panel p-5">
+      <h2 class="section-title mb-4 flex items-center gap-2">
+        <span class="w-1 h-4 brand-bar rounded-sm"></span>
+        Финансы
+      </h2>
+
+      <div class="grid grid-cols-2 gap-3 mb-4">
+        <div class="p-3.5 bg-[#fafbfc] border border-[var(--border)] rounded">
+          <div class="text-[10px] brand-text uppercase tracking-wider font-semibold mb-1.5">Дебиторская задолженность</div>
+          <div class="text-lg font-semibold text-[var(--text)] font-mono tabular">298.1M ₽</div>
+          <div class="text-xs text-[var(--muted)] mt-0.5">долг клиентов</div>
+        </div>
+        <div class="p-3.5 bg-[#fafbfc] border border-[var(--border)] rounded">
+          <div class="text-[10px] text-[var(--danger)] uppercase tracking-wider font-semibold mb-1.5">Кредиторская задолженность</div>
+          <div class="text-lg font-semibold text-[var(--text)] font-mono tabular">-800K ₽</div>
+          <div class="text-xs text-[var(--muted)] mt-0.5">наш долг</div>
+        </div>
+      </div>
+
+      <div>
+        <div class="text-[10px] text-[var(--muted)] uppercase tracking-wider font-semibold mb-2">Ключевые контрагенты</div>
+        <div class="border border-[var(--border)] rounded overflow-hidden">
+          <table class="w-full text-sm">
+            <thead>
+              <tr class="bg-[#fafbfc] border-b border-[var(--border)] text-[11px] text-[var(--muted)] uppercase tracking-wider">
+                <th class="px-3 py-2 text-left font-semibold">ID</th>
+                <th class="px-3 py-2 text-left font-semibold">Контрагент</th>
+                <th class="px-3 py-2 text-right font-semibold">Долг</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-[var(--border)]">
+              <tr class="table-row">
+                <td class="px-3 py-2.5 text-[var(--muted)] tabular">111</td>
+                <td class="px-3 py-2.5 text-[var(--text)]">ООО Пупкин</td>
+                <td class="px-3 py-2.5 text-right font-mono brand-text font-medium tabular">500 000 ₽</td>
+              </tr>
+              <tr class="table-row">
+                <td class="px-3 py-2.5 text-[var(--muted)] tabular">3389</td>
+                <td class="px-3 py-2.5 text-[var(--text)]">ООО Рогалик</td>
+                <td class="px-3 py-2.5 text-right font-mono brand-text font-medium tabular">61.6M ₽</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Logistics & Service -->
+    <div class="space-y-5">
+
+      <!-- Logistics -->
+      <div class="panel p-5">
+        <h2 class="section-title mb-4 flex items-center gap-2">
+          <span class="w-1 h-4 brand-bar rounded-sm"></span>
+          Логистика
+        </h2>
+        <div class="space-y-2">
+          <div class="flex items-center justify-between p-3 bg-[#fafbfc] border border-[var(--border)] rounded">
+            <div>
+              <div class="text-sm font-medium text-[var(--text)]">Сегодня</div>
+              <div class="text-xs text-[var(--muted)]">Отправка по МЛ</div>
+            </div>
+            <div class="text-right">
+              <div class="font-semibold text-[var(--text)] tabular">7 <span class="text-xs text-[var(--muted)] font-normal">договоров</span></div>
+              <div class="text-xs brand-text font-mono tabular">223 800 ₽</div>
+            </div>
+          </div>
+          <div class="flex items-center justify-between p-3 bg-[#fafbfc] border border-[var(--border)] rounded">
+            <div>
+              <div class="text-sm font-medium text-[var(--text)]">Завтра</div>
+              <div class="text-xs text-[var(--muted)]">План отправки</div>
+            </div>
+            <div class="text-right">
+              <div class="font-semibold text-[var(--text)] tabular">1 <span class="text-xs text-[var(--muted)] font-normal">договор</span></div>
+              <div class="text-xs text-[var(--muted)] font-mono tabular">0 ₽</div>
+            </div>
+          </div>
+          <div class="flex items-center justify-between p-3 bg-[#fafbfc] border border-[var(--border)] rounded">
+            <div>
+              <div class="text-sm font-medium text-[var(--text)]">Самовывоз</div>
+              <div class="text-xs text-[var(--muted)]">Со склада</div>
+            </div>
+            <div class="text-right">
+              <div class="font-semibold text-[var(--text)] tabular">2 <span class="text-xs text-[var(--muted)] font-normal">договора</span></div>
+              <div class="text-xs brand-text font-mono tabular">180 000 ₽</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Service -->
+      <div class="panel p-5">
+        <h2 class="section-title mb-4 flex items-center gap-2">
+          <span class="w-1 h-4 brand-bar rounded-sm"></span>
+          Отдел Сервиса
+        </h2>
+        <div class="grid grid-cols-3 gap-2.5">
+          <div class="p-3 brand-bg-soft border border-[var(--brand-border)] rounded text-center">
+            <div class="text-xl font-semibold brand-text tabular">29</div>
+            <div class="text-[10px] text-[var(--muted)] mt-0.5 uppercase tracking-wider">В работе</div>
+          </div>
+          <div class="p-3 bg-[#fafbfc] border border-[var(--border)] rounded text-center">
+            <div class="text-xl font-semibold text-[var(--text)] tabular">0</div>
+            <div class="text-[10px] text-[var(--muted)] mt-0.5 uppercase tracking-wider">Принято</div>
+          </div>
+          <div class="p-3 bg-[#fafbfc] border border-[var(--border)] rounded text-center">
+            <div class="text-xl font-semibold text-[var(--text)] tabular">0</div>
+            <div class="text-[10px] text-[var(--muted)] mt-0.5 uppercase tracking-wider">Выполнено</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Materials -->
+  <section class="panel p-5">
+    <div class="flex items-center justify-between mb-5">
+      <div>
+        <h2 class="section-title">Задания по материалам</h2>
+        <p class="section-sub">Распределение по типам материалов</p>
+      </div>
+    </div>
+    <div class="h-64">
+      <canvas id="materialsChart"></canvas>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer class="text-center py-5 text-xs text-[var(--muted)] border-t border-[var(--border)] mt-3">
+    <p>Система мониторинга мебельной фабрики · Данные обновляются в реальном времени</p>
+  </footer>
+
+</main>
+
+<script>
+  function updateTime() {
+    const now = new Date();
+    document.getElementById('currentTime').textContent = now.toLocaleTimeString('ru-RU');
+  }
+  updateTime();
+  setInterval(updateTime, 1000);
+
+  const brand = '#009e98';
+  const brandDark = '#007a75';
+  const brandSoft = 'rgba(0, 158, 152, 0.55)';
+  const danger = '#b91c1c';
+  const dangerSoft = 'rgba(185, 28, 28, 0.55)';
+  const gridColor = 'rgba(0, 0, 0, 0.06)';
+  const tickColor = '#6b7280';
+
+  Chart.defaults.font.family = "'Inter', sans-serif";
+
+  // Production Chart
+  const prodCtx = document.getElementById('productionChart').getContext('2d');
+  new Chart(prodCtx, {
+    type: 'bar',
+    data: {
+      labels: ['V-2.1 VIP', 'V-2.2 Малярный', 'Б-1 Индив'],
+      datasets: [
+        {
+          label: 'В работе',
+          data: [16, 7, 237],
+          backgroundColor: brandSoft,
+          borderColor: brand,
+          borderWidth: 1,
+          borderRadius: 3
+        },
+        {
+          label: 'Отставание',
+          data: [5, 2, 100],
+          backgroundColor: dangerSoft,
+          borderColor: danger,
+          borderWidth: 1,
+          borderRadius: 3
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          position: 'top',
+          align: 'end',
+          labels: { color: tickColor, font: { size: 11 }, boxWidth: 12, boxHeight: 12, padding: 16 }
+        }
+      },
+      scales: {
+        x: {
+          ticks: { color: tickColor, font: { size: 11 } },
+          grid: { display: false },
+          border: { color: gridColor }
+        },
+        y: {
+          ticks: { color: tickColor, font: { size: 11 } },
+          grid: { color: gridColor },
+          border: { display: false }
+        }
+      }
+    }
+  });
+
+  // Materials Chart
+  const matCtx = document.getElementById('materialsChart').getContext('2d');
+  const matColors = [
+    { bg: 'rgba(0, 158, 152, 0.85)', border: '#009e98' },
+    { bg: 'rgba(0, 158, 152, 0.70)', border: '#009e98' },
+    { bg: 'rgba(0, 158, 152, 0.55)', border: '#009e98' },
+    { bg: 'rgba(0, 158, 152, 0.42)', border: '#009e98' },
+    { bg: 'rgba(0, 158, 152, 0.30)', border: '#009e98' },
+    { bg: 'rgba(0, 158, 152, 0.18)', border: '#009e98' }
+  ];
+  new Chart(matCtx, {
+    type: 'bar',
+    data: {
+      labels: ['ЛДСП', 'МДФ', 'Стекло', 'Алюминий', 'Картон', 'Двери'],
+      datasets: [{
+        label: 'Заданий в работе',
+        data: [190, 112, 61, 97, 277, 1294],
+        backgroundColor: matColors.map(c => c.bg),
+        borderColor: matColors.map(c => c.border),
+        borderWidth: 1,
+        borderRadius: 3
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: {
+          ticks: { color: tickColor, font: { size: 11 } },
+          grid: { display: false },
+          border: { color: gridColor }
+        },
+        y: {
+          ticks: { color: tickColor, font: { size: 11 } },
+          grid: { color: gridColor },
+          border: { display: false }
+        }
+      }
+    }
+  });
+</script>
+
+</body>
+</html>
